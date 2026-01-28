@@ -252,6 +252,13 @@ void populate_builtin_words(Word_Table_Item **word_table, size_t size)
     add_word(word_table, size, "bye", (String_Builder){.items = "\x49\xC7\xC3\x01\x00\x00\x00\x4C\x89\x1A\xC3", .count = 11, .capacity = 11});
     add_word(word_table, size, "+", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x4C\x8B\x67\xF8\x4D\x01\xDC\x4C\x89\x67\xF8\xC3", .count = 22, .capacity = 22});
     add_word(word_table, size, "-", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x4C\x8B\x67\xF8\x4D\x29\xDC\x4C\x89\x67\xF8\xC3", .count = 22, .capacity = 22});
+    add_word(word_table, size, "*", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x4C\x8B\x67\xF8\x4D\x0F\xAF\xE3\x4C\x89\x67\xF8\xC3", .count = 23, .capacity = 23});
+    add_word(word_table, size, "/", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x48\x8B\x47\xF8\x48\x99\x49\xF7\xFB\x48\x89\x47\xF8\xC3", .count = 24, .capacity = 24});
+    add_word(word_table, size, "dup", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x89\x27\x48\x83\x01\x08\xC3", .count = 15, .capacity = 15});
+    add_word(word_table, size, "drop", (String_Builder){.items = "\x48\x83\x29\x08\xC3", .count = 5, .capacity = 5});
+    add_word(word_table, size, "over", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF0\x4C\x89\x27\x48\x83\x01\x08\xC3", .count = 15, .capacity = 15});
+    add_word(word_table, size, "nip", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x27\x4C\x89\x67\xF8\xC3", .count = 15, .capacity = 15});
+    add_word(word_table, size, "swap", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x8B\x6F\xF0\x4C\x89\x6F\xF8\x4C\x89\x67\xF0\xC3", .count = 20, .capacity = 20});
     String_Builder dot_source = {0};
         sb_append_cstr(&dot_source, PROLOGUE);
         sb_append_cstr(&dot_source, "\x48\x83\x29\x08\x48\x8B\x09\x48\x8B\x09");
