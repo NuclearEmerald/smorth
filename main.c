@@ -136,7 +136,7 @@ int main()
                     {
                         sb_append_cstr(&program_state.word_source, "\x48\x83\x29\x08\x4C\x8B\x21\x49\x8B\x3C\x24\x49\x8B\x74\x24\xF8\x48\x83\x29\x08\x55\x48\x89\xE5\x48\x83\xEC\x30\x48\x89\x7D\xF8\x48\x89\x75\xF0");
                         program_state.address_stack[program_state.ai++] = (Address_Stack_Item){.kind="?do", .old_count=program_state.word_source.count};
-                        sb_append_buf(&program_state.word_source, "\x48\x8B\x7D\xF8\x48\x8B\x75\xF0\x48\x85\xF7\x0F\x84\x00\x00\x00\x00\x48\xFF\x45\xF8", 21);
+                        sb_append_buf(&program_state.word_source, "\x48\x8B\x7D\xF8\x48\x8B\x75\xF0\x48\x39\xF7\x0F\x84\x00\x00\x00\x00\x48\xFF\x45\xF8", 21);
                     }
                     else if (strcmp(token->as.word.data, "loop")==0)
                     {
@@ -163,7 +163,7 @@ int main()
                             sb_append_buf(&program_state.word_source, &word->codeptr, sizeof(void*));
                             sb_append_cstr(&program_state.word_source, "\xFF\xD0");
                             sb_append_cstr(&program_state.word_source, EPILOGUE);
-                            sb_append_buf(&program_state.word_source, "\x66\xF7\x02\x01\x00\x74\x01\xC3", 8);
+                            //sb_append_buf(&program_state.word_source, "\x66\xF7\x02\x01\x00\x74\x01\xC3", 8);
                         }
                     }
                 }
@@ -231,7 +231,7 @@ void lex(Tokens *tokens, char *source)
         if (isnumber(raw.data))
         {
             int64_t number = atoll(raw.data);
-            if ((strcmp(raw.data, "0") || strcmp(raw.data, "-0") || strcmp(raw.data, "+0")) && number==0) return;
+            if ((strcmp(raw.data, "0") && strcmp(raw.data, "-0") && strcmp(raw.data, "+0")) && number==0) return;
             Token token = {.kind=NUMBER, .line=line, .col=col, .raw=raw, .as.number=number};
             da_append(tokens, token);
             col+=strlen(raw.data)-1;
@@ -259,6 +259,7 @@ void populate_builtin_words(Word_Table_Item **word_table, size_t size)
     add_word(word_table, size, "over", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF0\x4C\x89\x27\x48\x83\x01\x08\xC3", .count = 15, .capacity = 15});
     add_word(word_table, size, "nip", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x27\x4C\x89\x67\xF8\xC3", .count = 15, .capacity = 15});
     add_word(word_table, size, "swap", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x8B\x6F\xF0\x4C\x89\x6F\xF8\x4C\x89\x67\xF0\xC3", .count = 20, .capacity = 20});
+    add_word(word_table, size, "rot", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x8B\x6F\xE8\x4C\x89\x6F\xF8\x4C\x8B\x6F\xF0\x4C\x89\x67\xF0\x4C\x89\x6F\xE8\xC3", .count = 28, .capacity = 28});
     String_Builder dot_source = {0};
         sb_append_cstr(&dot_source, PROLOGUE);
         sb_append_cstr(&dot_source, "\x48\x83\x29\x08\x48\x8B\x09\x48\x8B\x09");
