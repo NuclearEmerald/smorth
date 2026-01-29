@@ -145,7 +145,7 @@ int main()
                         Address_Stack_Item item = program_state.address_stack[--program_state.ai];
                         if (strcmp(item.kind, "?do")==0)
                         {
-                            sb_append(&program_state.word_source, '\xE9');
+                            sb_append_cstr(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x85");
                             int32_t dif = (item.old_count-program_state.word_source.count)-4;
                             sb_append_buf(&program_state.word_source, &dif, sizeof(int32_t));
                             dif = (program_state.word_source.count-item.old_count)-17;
