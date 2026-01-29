@@ -1,0 +1,1 @@
+<img src="smorth.png" width="256px"/>
