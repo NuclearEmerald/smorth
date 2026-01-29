@@ -111,7 +111,8 @@ int main()
             {
                 if (program_state.compiling)
                 {
-                    if (program_state.word_name==NULL) return 1;
+                    if (program_state.word_name==NULL) {printf("invalid word declaration"); return 1;}
+                    sb_append_buf(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x84\x14\x00\x00\x00", 10);
                     sb_append_cstr(&program_state.word_source, "\x48\x8B\x39\x48\xB8");
                     sb_append_buf(&program_state.word_source, &token->as.number, sizeof(int64_t));
                     sb_append_cstr(&program_state.word_source, "\x48\x89\x07\x48\x83\x01\x08");
@@ -125,7 +126,7 @@ int main()
                 {
                     if (strcmp(token->as.word.data, ";")==0)
                     {
-                        if (program_state.word_name==NULL) return 1;
+                        if (program_state.word_name==NULL) {printf("invalid word declaration"); return 1;}
                         sb_append(&program_state.word_source, '\xC3');
                         add_word(program_state.word_table, program_state.word_table_size, program_state.word_name, program_state.word_source);
                         program_state.word_name=NULL;
@@ -134,6 +135,7 @@ int main()
                     }
                     else if (strcmp(token->as.word.data, "?do")==0)
                     {
+                        sb_append_buf(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x84\x00\x00\x00\x00", 10);
                         sb_append_cstr(&program_state.word_source, "\x48\x83\x29\x08\x4C\x8B\x21\x49\x8B\x3C\x24\x49\x8B\x74\x24\xF8\x48\x83\x29\x08\x55\x48\x89\xE5\x48\x83\xEC\x30\x48\x89\x7D\xF8\x48\x89\x75\xF0");
                         program_state.address_stack[program_state.ai++] = (Address_Stack_Item){.kind="?do", .old_count=program_state.word_source.count};
                         sb_append_buf(&program_state.word_source, "\x48\x8B\x7D\xF8\x48\x8B\x75\xF0\x48\x39\xF7\x0F\x84\x00\x00\x00\x00\x48\xFF\x45\xF8", 21);
@@ -146,9 +148,13 @@ int main()
                             sb_append(&program_state.word_source, '\xE9');
                             int32_t dif = (item.old_count-program_state.word_source.count)-4;
                             sb_append_buf(&program_state.word_source, &dif, sizeof(int32_t));
-                            dif = (program_state.word_source.count-item.old_count)-16;
+                            dif = (program_state.word_source.count-item.old_count)-17;
+                            int32_t dif2 = dif+58;
                             for(int i=0;i<4;i++)
+                            {
                                 program_state.word_source.items[item.old_count+13+i] = ((char *)&dif)[i];
+                                program_state.word_source.items[item.old_count-40+i] = ((char *)&dif2)[i];
+                            }
                             sb_append_cstr(&program_state.word_source, "\x48\x83\xC4\x30\x5D");
                         }
                     }
@@ -158,12 +164,12 @@ int main()
                         else
                         {
                             Word_Table_Item *word = get_word(program_state.word_table, program_state.word_table_size, token->as.word.data);
+                            sb_append_buf(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x84\x29\x00\x00\x00", 10);
                             sb_append_cstr(&program_state.word_source, PROLOGUE);
                             sb_append_cstr(&program_state.word_source, "\x48\xB8");
                             sb_append_buf(&program_state.word_source, &word->codeptr, sizeof(void*));
                             sb_append_cstr(&program_state.word_source, "\xFF\xD0");
                             sb_append_cstr(&program_state.word_source, EPILOGUE);
-                            //sb_append_buf(&program_state.word_source, "\x66\xF7\x02\x01\x00\x74\x01\xC3", 8);
                         }
                     }
                 }
@@ -175,7 +181,7 @@ int main()
                         Word_Table_Item *word = get_word(program_state.word_table, program_state.word_table_size, token->as.word.data);
                         if(word==NULL) {printf("word not defined"); return 1;}
                         call_word(word->codeptr, &program_state);
-                        if (program_state.sp<program_state.stack) return 1;
+                        if (program_state.sp<program_state.stack) {printf("stack underflow"); return 1;}
                     }
                 }
             }
