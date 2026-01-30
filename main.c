@@ -188,7 +188,7 @@ int main()
             
             /*if (program_state.sp!=program_state.stack)
             {
-                printf("[ ");
+                printf("\n[ ");
                 int i = 0;
                 while (&program_state.stack[i]<program_state.sp-1)
                 {
