@@ -86,8 +86,11 @@ void printnum(int64_t num)
     return;
 }
 
-int main()
+int main(int argc, char **argv)
 {
+    bool stack_trace = false;
+    for(int i=0;i<argc;i++) if(strcmp(argv[i],"-st")) stack_trace=true;
+
     Program_State program_state = {0};
     program_state.word_table_size = sizeof(program_state.word_table)/sizeof(Word_Table_Item*);
     populate_builtin_words(program_state.word_table, program_state.word_table_size);
@@ -186,7 +189,7 @@ int main()
                 }
             }
             
-            /*if (program_state.sp!=program_state.stack)
+            if (stack_trace && program_state.sp!=program_state.stack)
             {
                 printf("\n[ ");
                 int i = 0;
@@ -194,9 +197,9 @@ int main()
                 {
                     printf("%lli, ", program_state.stack[i]);
                     i++;
-                    }
-                    printf("%lli ]\n", program_state.stack[i]);
-                    }*/
+                }
+                printf("%lli ]\n", program_state.stack[i]);
+            }
         }
         printf("ok\n");
     }
