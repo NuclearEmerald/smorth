@@ -3,6 +3,7 @@
 #undef NOB_IMPLEMENTATION
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #ifdef __WIN32
     #include <windows.h>
@@ -88,7 +89,7 @@ void call_word(void(*word)(int64_t**, bool *), Program_State *program_state);
 
 void printnum(int64_t num)
 {
-    printf("%lli ", num);
+    printf("%" PRId64 " ", num);
     return;
 }
 
@@ -98,7 +99,7 @@ void trace_stack(Program_State *program_state)
     {
         printf("\n\n|--stack-trace------- [ %s ]\n", program_state->current_word);
         for(int i=0; &program_state->stack[i]<program_state->sp; i++)
-            printf("| %lli\n", program_state->stack[i]);
+            printf("| %" PRId64 "\n", program_state->stack[i]);
         printf("|-------------------- [ %s ]\n\n", program_state->current_word);
     }
 }
@@ -497,7 +498,7 @@ void *exallocsb(String_Builder *sb)
     memcpy(ptr, sb->items, sb->count);
     return ptr;
 #else
-    void *ptr = return mmap(NULL, sb->count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void *ptr = mmap(NULL, sb->count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memcpy(ptr, sb->items, sb->count);
     mprotect(ptr, sb->count, PROT_READ | PROT_EXEC);
     return ptr;
