@@ -24,15 +24,17 @@ void sb_insert_movabs(String_Builder *sb, Register reg, void *v)
 void sb_insert_mov(String_Builder *sb, Register src, Register dst)
 {
     if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
-    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
-    sb_append(sb, (dst.kind!=REGISTER)?'\x89':'\x8B');
 
-    if(dst.kind!=REGISTER)
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
     {
         Register tmp = src;
         src = dst;
         dst = tmp;
     }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x89':'\x8B');
 
     sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
     if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
@@ -50,15 +52,17 @@ void sb_insert_addimm(String_Builder *sb, Register reg, int32_t v)
 void sb_insert_add(String_Builder *sb, Register src, Register dst)
 {
     if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
-    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
-    sb_append(sb, (dst.kind!=REGISTER)?'\x01':'\x03');
 
-    if(dst.kind!=REGISTER)
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
     {
         Register tmp = src;
         src = dst;
         dst = tmp;
     }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x01':'\x03');
 
     sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
     if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
@@ -76,15 +80,17 @@ void sb_insert_subimm(String_Builder *sb, Register reg, int32_t v)
 void sb_insert_sub(String_Builder *sb, Register src, Register dst)
 {
     if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
-    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
-    sb_append(sb, (dst.kind!=REGISTER)?'\x29':'\x2B');
 
-    if(dst.kind!=REGISTER)
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
     {
         Register tmp = src;
         src = dst;
         dst = tmp;
     }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x29':'\x2B');
 
     sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
     if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
@@ -147,15 +153,17 @@ void sb_insert_cmpimm(String_Builder *sb, Register reg, int32_t v)
 void sb_insert_cmp(String_Builder *sb, Register src, Register dst)
 {
     if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
-    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
-    sb_append(sb, (dst.kind!=REGISTER)?'\x39':'\x3B');
 
-    if(dst.kind!=REGISTER)
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
     {
         Register tmp = src;
         src = dst;
         dst = tmp;
     }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x39':'\x3B');
 
     sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
     if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
