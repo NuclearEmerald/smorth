@@ -402,7 +402,6 @@ void populate_builtin_words(Word_Table_Item **word_table, size_t size)
         sb_append_cstr(&swap_src, "\xC3");
     add_word(word_table, size, "swap", swap_src);
 
-    add_word(word_table, size, "rot", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x8B\x6F\xE8\x4C\x89\x6F\xF8\x4C\x8B\x6F\xF0\x4C\x89\x67\xF0\x4C\x89\x6F\xE8\xC3", .count = 28, .capacity = 28});
     String_Builder rot_src = {0};
         sb_insert_mov(&rot_src, reg_make_ptr(get_register(1),0), get_register(0));
         sb_insert_mov(&rot_src, reg_make_ptr(get_register(0),-8), get_register(5));
