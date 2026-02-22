@@ -3,7 +3,12 @@
 #undef NOB_IMPLEMENTATION
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
+
+#ifdef __WIN32
+    #include <windows.h>
+#else
+    #include <sys/mman.h>
+#endif
 
 #include "codegen.h"
 
@@ -306,6 +311,8 @@ void lex(Tokens *tokens, char *source)
     }
 }
 
+void *exallocsb(String_Builder *sb);
+void exfreesb(void *ptr, size_t len);
 size_t __hash(const char *str);
 
 void populate_builtin_words(Word_Table_Item **word_table, size_t size)
@@ -429,8 +436,7 @@ void add_word(Word_Table_Item **word_table, size_t size, const char *name, Strin
         word_table[key]->key = malloc(strlen(name));
             memcpy(word_table[key]->key, name, strlen(name)+1);
         word_table[key]->source = source;
-        word_table[key]->codeptr = VirtualAlloc(NULL, source.count, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-            memcpy(word_table[key]->codeptr, source.items, source.count);
+        word_table[key]->codeptr = exallocsb(&source);
         word_table[key]->next=NULL;
     }
     else
@@ -440,21 +446,28 @@ void add_word(Word_Table_Item **word_table, size_t size, const char *name, Strin
         {
             if (!strcmp(item->key, name))
             {
+                exfreesb(item->codeptr, item->source.count);
                 item->source = source;
-                VirtualFree(item->codeptr, 0, MEM_RELEASE);
-                item->codeptr = VirtualAlloc(NULL, source.count, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+                item->codeptr = exallocsb(&source);
                 memcpy(item->codeptr, source.items, source.count);
                 return;
             }
             item = item->next;
+        }
+        if (!strcmp(item->key, name))
+        {
+            exfreesb(item->codeptr, item->source.count);
+            item->source = source;
+            item->codeptr = exallocsb(&source);
+            memcpy(item->codeptr, source.items, source.count);
+            return;
         }
         item->next = malloc(sizeof(Word_Table_Item));
         item = item->next;
         item->key =  malloc(strlen(name));
             memcpy(item->key, name, strlen(name)+1);
         item->source = source;
-        item->codeptr = VirtualAlloc(NULL, source.count, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-        memcpy(item->codeptr, source.items, source.count);
+        item->codeptr = exallocsb(&source);
         item->next=NULL;
     }
 }
@@ -474,6 +487,33 @@ Word_Table_Item *get_word(Word_Table_Item **word_table, size_t size, const char 
 void call_word(void(*word)(int64_t**, bool *), Program_State *program_state)
 {
     word(&program_state->sp, &program_state->should_quit);
+}
+
+
+void *exallocsb(String_Builder *sb)
+{
+#ifdef _WIN32
+    void *ptr = VirtualAlloc(NULL, sb->count, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    memcpy(ptr, sb->items, sb->count);
+    return ptr;
+#else
+    void *ptr = return mmap(NULL, sb->count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    memcpy(ptr, sb->items, sb->count);
+    mprotect(ptr, sb->count, PROT_READ | PROT_EXEC);
+    return ptr;
+#endif
+}
+
+// len only needed on unix
+void exfreesb(void *ptr, size_t len)
+{
+#ifdef _WIN32
+    (void)len;
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#else
+    munmap(ptr, len);
+#endif
+    return;
 }
 
 
