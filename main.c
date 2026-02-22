@@ -1,8 +1,11 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
+#undef NOB_IMPLEMENTATION
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
+
+#include "codegen.h"
 
 
 typedef enum TokenKind
@@ -48,7 +51,7 @@ Word_Table_Item;
 typedef struct
 {
     char *kind;
-    int32_t old_count;
+    size_t handle;
 }
 Address_Stack_Item;
 
@@ -61,6 +64,7 @@ typedef struct
     int64_t *sp;
 
     bool should_quit;
+    const char *current_word;
 
     bool compiling;
     const char *word_name;
@@ -70,15 +74,12 @@ typedef struct
 }
 Program_State;
 
-
 bool isnumber(const char *raw);
 void lex(Tokens *tokens, char *source);
 void populate_builtin_words(Word_Table_Item **word_table, size_t size);
 void add_word(Word_Table_Item **word_table, size_t size, const char *name, String_Builder source);
 Word_Table_Item *get_word(Word_Table_Item **word_table, size_t size, const char *name);
 void call_word(void(*word)(int64_t**, bool *), Program_State *program_state);
-#define PROLOGUE "\x55\x48\x89\xE5\x48\x83\xEC\x30\x48\x89\x4D\xF8\x48\x89\x55\xF0"
-#define EPILOGUE "\x48\x8B\x55\xF0\x48\x8B\x4D\xF8\x48\x83\xC4\x30\x5D"
 
 void printnum(int64_t num)
 {
@@ -86,10 +87,21 @@ void printnum(int64_t num)
     return;
 }
 
+void trace_stack(Program_State *program_state)
+{
+    if (!program_state->should_quit)
+    {
+        printf("\n\n|--stack-trace------- [ %s ]\n", program_state->current_word);
+        for(int i=0; &program_state->stack[i]<program_state->sp; i++)
+            printf("| %lli\n", program_state->stack[i]);
+        printf("|-------------------- [ %s ]\n\n", program_state->current_word);
+    }
+}
+
 int main(int argc, char **argv)
 {
     bool stack_trace = false;
-    for(int i=0;i<argc;i++) if(strcmp(argv[i],"-st")) stack_trace=true;
+    for(int i=0;i<argc;i++) if(strcmp(argv[i],"-st")==0) stack_trace=true;
 
     Program_State program_state = {0};
     program_state.word_table_size = sizeof(program_state.word_table)/sizeof(Word_Table_Item*);
@@ -115,13 +127,32 @@ int main(int argc, char **argv)
                 if (program_state.compiling)
                 {
                     if (program_state.word_name==NULL) {printf("invalid word declaration"); return 1;}
-                    sb_append_buf(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x84\x14\x00\x00\x00", 10);
-                    sb_append_cstr(&program_state.word_source, "\x48\x8B\x39\x48\xB8");
-                    sb_append_buf(&program_state.word_source, &token->as.number, sizeof(int64_t));
-                    sb_append_cstr(&program_state.word_source, "\x48\x89\x07\x48\x83\x01\x08");
+                    sb_insert_cmpimm(&program_state.word_source, reg_make_ptr(get_register(2),0),1);
+                    size_t jmp_handle = sb_start_jz(&program_state.word_source);
+
+                    sb_insert_mov(&program_state.word_source, reg_make_ptr(get_register(1),0), get_register(0));
+                    sb_insert_movabs(&program_state.word_source, get_register(5), (void *)token->as.number);
+                    sb_insert_mov(&program_state.word_source, get_register(5), reg_make_ptr(get_register(0),0));
+                    sb_insert_addimm(&program_state.word_source, reg_make_ptr(get_register(1), 0), 0x8);
+                    
+                    if(stack_trace)
+                    {
+                        String_Builder param_code = {0};
+                        sb_append_cstr(&param_code, "\x48\xB9");
+                        Program_State *ps = &program_state;
+                        sb_append_buf(&param_code, &ps, sizeof(Program_State*));
+                        sb_insert_call(&program_state.word_source, trace_stack, &param_code);
+                    }
+                    
+                    sb_end_jcond(&program_state.word_source, jmp_handle);
                 }
                 else
-                    {*program_state.sp=token->as.number; program_state.sp++;}
+                {
+                    *program_state.sp=token->as.number;
+                    program_state.sp++;
+                    program_state.current_word=token->raw.data;
+                    if (stack_trace) trace_stack(&program_state);
+                }
             }
             else if (token->kind==FWORD)
             {
@@ -138,28 +169,44 @@ int main(int argc, char **argv)
                     }
                     else if (strcmp(token->as.word.data, "?do")==0)
                     {
-                        sb_append_buf(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x84\x00\x00\x00\x00", 10);
-                        sb_append_cstr(&program_state.word_source, "\x48\x83\x29\x08\x4C\x8B\x21\x49\x8B\x3C\x24\x49\x8B\x74\x24\xF8\x48\x83\x29\x08\x55\x48\x89\xE5\x48\x83\xEC\x30\x48\x89\x7D\xF8\x48\x89\x75\xF0");
-                        program_state.address_stack[program_state.ai++] = (Address_Stack_Item){.kind="?do", .old_count=program_state.word_source.count};
-                        sb_append_buf(&program_state.word_source, "\x48\x8B\x7D\xF8\x48\x8B\x75\xF0\x48\x39\xF7\x0F\x84\x00\x00\x00\x00\x48\xFF\x45\xF8", 21);
+                        sb_insert_cmpimm(&program_state.word_source, reg_make_ptr(get_register(2),0),1);
+                        program_state.address_stack[program_state.ai++] = (Address_Stack_Item){.kind="should_quit", .handle=sb_start_jz(&program_state.word_source)};
+                        sb_insert_subimm(&program_state.word_source, reg_make_ptr(get_register(1),0), 0x8);
+                        sb_insert_mov(&program_state.word_source, reg_make_ptr(get_register(1),0), get_register(0));
+                        sb_insert_mov(&program_state.word_source, reg_make_ptr(get_register(0),0), get_register(5));
+                        sb_insert_mov(&program_state.word_source, reg_make_ptr(get_register(0),-8), get_register(6));
+                        sb_insert_subimm(&program_state.word_source, reg_make_ptr(get_register(1),0), 0x8);
+                        sb_append_cstr(&program_state.word_source, "\x55\x48\x89\xE5\x48\x83\xEC\x30");
+                        sb_insert_mov(&program_state.word_source, get_register(5), reg_make_ptr(REG_RBP,-8));
+                        sb_insert_mov(&program_state.word_source, get_register(6), reg_make_ptr(REG_RBP,-16));
+                        program_state.address_stack[program_state.ai++] = (Address_Stack_Item){.kind="loop", .handle=get_jmp_marker(&program_state.word_source)};
+                        sb_insert_mov(&program_state.word_source, reg_make_ptr(REG_RBP,-8), get_register(5));
+                        sb_insert_mov(&program_state.word_source, reg_make_ptr(REG_RBP,-16), get_register(6));
+                        sb_insert_cmp(&program_state.word_source, get_register(5), get_register(6));
+                        program_state.address_stack[program_state.ai++] = (Address_Stack_Item){.kind="?do", .handle=sb_start_jz(&program_state.word_source)};
+                        sb_append_cstr(&program_state.word_source, "\x48\xFF\x45\xF8");
                     }
                     else if (strcmp(token->as.word.data, "loop")==0)
                     {
                         Address_Stack_Item item = program_state.address_stack[--program_state.ai];
                         if (strcmp(item.kind, "?do")==0)
                         {
-                            sb_append_cstr(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x85");
-                            int32_t dif = (item.old_count-program_state.word_source.count)-4;
-                            sb_append_buf(&program_state.word_source, &dif, sizeof(int32_t));
-                            dif = (program_state.word_source.count-item.old_count)-17;
-                            int32_t dif2 = dif+58;
-                            for(int i=0;i<4;i++)
+                            Address_Stack_Item loop = program_state.address_stack[--program_state.ai];
+                            if (strcmp(loop.kind,"loop")==0)
                             {
-                                program_state.word_source.items[item.old_count+13+i] = ((char *)&dif)[i];
-                                program_state.word_source.items[item.old_count-40+i] = ((char *)&dif2)[i];
+                                sb_insert_cmpimm(&program_state.word_source, reg_make_ptr(get_register(2),0),1);
+                                sb_insert_jnz(&program_state.word_source, loop.handle);
                             }
+                            else UNREACHABLE("invalid address stack: expected kind loop");
+
+                            sb_end_jcond(&program_state.word_source, item.handle);
                             sb_append_cstr(&program_state.word_source, "\x48\x83\xC4\x30\x5D");
+
+                            item = program_state.address_stack[--program_state.ai];
+                            if (strcmp(item.kind, "should_quit")==0) sb_end_jcond(&program_state.word_source, item.handle);
+                            else UNREACHABLE("invalid address stack: expected kind should_quit");
                         }
+                        else UNREACHABLE("invalid address stack");
                     }
                     else
                     {
@@ -167,12 +214,19 @@ int main(int argc, char **argv)
                         else
                         {
                             Word_Table_Item *word = get_word(program_state.word_table, program_state.word_table_size, token->as.word.data);
-                            sb_append_buf(&program_state.word_source, "\x66\x83\x3A\x01\x0F\x84\x29\x00\x00\x00", 10);
-                            sb_append_cstr(&program_state.word_source, PROLOGUE);
-                            sb_append_cstr(&program_state.word_source, "\x48\xB8");
-                            sb_append_buf(&program_state.word_source, &word->codeptr, sizeof(void*));
-                            sb_append_cstr(&program_state.word_source, "\xFF\xD0");
-                            sb_append_cstr(&program_state.word_source, EPILOGUE);
+                            sb_insert_cmpimm(&program_state.word_source, reg_make_ptr(get_register(2),0),1);
+                            size_t jmp_handle = sb_start_jz(&program_state.word_source);
+
+                            sb_insert_call(&program_state.word_source, word->codeptr, NULL);
+
+                            if(stack_trace)
+                            {
+                                String_Builder param_code = {0};
+                                    sb_insert_movabs(&param_code, get_register(1), (void *)&program_state);
+                                sb_insert_call(&program_state.word_source, trace_stack, &param_code);
+                            }
+
+                            sb_end_jcond(&program_state.word_source, jmp_handle);
                         }
                     }
                 }
@@ -183,23 +237,21 @@ int main(int argc, char **argv)
                     {
                         Word_Table_Item *word = get_word(program_state.word_table, program_state.word_table_size, token->as.word.data);
                         if(word==NULL) {printf("word not defined"); return 1;}
+                        program_state.current_word=word->key;
                         call_word(word->codeptr, &program_state);
                         if (program_state.sp<program_state.stack) {printf("stack underflow"); return 1;}
+                        {
+                            String_Builder word_ret = {0};
+                            sb_append_cstr(&word_ret, word->key);
+                            sb_append_cstr(&word_ret, " - ret");
+                            sb_append_null(&word_ret);
+                            program_state.current_word=word_ret.items;
+                        }
+                        if (stack_trace) trace_stack(&program_state);
                     }
                 }
             }
             
-            if (stack_trace && program_state.sp!=program_state.stack)
-            {
-                printf("\n[ ");
-                int i = 0;
-                while (&program_state.stack[i]<program_state.sp-1)
-                {
-                    printf("%lli, ", program_state.stack[i]);
-                    i++;
-                }
-                printf("%lli ]\n", program_state.stack[i]);
-            }
         }
         printf("ok\n");
     }
@@ -258,27 +310,110 @@ size_t __hash(const char *str);
 
 void populate_builtin_words(Word_Table_Item **word_table, size_t size)
 {
-    add_word(word_table, size, "bye", (String_Builder){.items = "\x49\xC7\xC3\x01\x00\x00\x00\x4C\x89\x1A\xC3", .count = 11, .capacity = 11});
-    add_word(word_table, size, "+", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x4C\x8B\x67\xF8\x4D\x01\xDC\x4C\x89\x67\xF8\xC3", .count = 22, .capacity = 22});
-    add_word(word_table, size, "-", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x4C\x8B\x67\xF8\x4D\x29\xDC\x4C\x89\x67\xF8\xC3", .count = 22, .capacity = 22});
-    add_word(word_table, size, "*", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x4C\x8B\x67\xF8\x4D\x0F\xAF\xE3\x4C\x89\x67\xF8\xC3", .count = 23, .capacity = 23});
-    add_word(word_table, size, "/", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x1F\x48\x8B\x47\xF8\x48\x99\x49\xF7\xFB\x48\x89\x47\xF8\xC3", .count = 24, .capacity = 24});
-    add_word(word_table, size, "dup", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x89\x27\x48\x83\x01\x08\xC3", .count = 15, .capacity = 15});
-    add_word(word_table, size, "drop", (String_Builder){.items = "\x48\x83\x29\x08\xC3", .count = 5, .capacity = 5});
-    add_word(word_table, size, "over", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF0\x4C\x89\x27\x48\x83\x01\x08\xC3", .count = 15, .capacity = 15});
-    add_word(word_table, size, "nip", (String_Builder){.items = "\x48\x83\x29\x08\x48\x8B\x39\x4C\x8B\x27\x4C\x89\x67\xF8\xC3", .count = 15, .capacity = 15});
-    add_word(word_table, size, "swap", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x8B\x6F\xF0\x4C\x89\x6F\xF8\x4C\x89\x67\xF0\xC3", .count = 20, .capacity = 20});
+    String_Builder bye_src = {0};
+        sb_insert_movabs(&bye_src, get_register(0), (void*)0x1);
+        sb_insert_mov(&bye_src, get_register(0), reg_make_ptr(get_register(2),0));
+        sb_append_cstr(&bye_src, "\xC3");
+    add_word(word_table, size, "bye", bye_src);
+
+    String_Builder plus_src = {0};
+        sb_insert_subimm(&plus_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&plus_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&plus_src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_mov(&plus_src, reg_make_ptr(get_register(0),-8), get_register(6));
+        sb_insert_add(&plus_src, get_register(5), get_register(6));
+        sb_insert_mov(&plus_src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&plus_src, "\xC3");
+    add_word(word_table, size, "+", plus_src);
+
+    String_Builder minus_src = {0};
+        sb_insert_subimm(&minus_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&minus_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&minus_src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_mov(&minus_src, reg_make_ptr(get_register(0),-8), get_register(6));
+        sb_insert_sub(&minus_src, get_register(5), get_register(6));
+        sb_insert_mov(&minus_src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&minus_src, "\xC3");
+    add_word(word_table, size, "-", minus_src);
+
+    String_Builder mul_src = {0};
+        sb_insert_subimm(&mul_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&mul_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&mul_src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_mov(&mul_src, reg_make_ptr(get_register(0),-8), get_register(6));
+        sb_insert_imul(&mul_src, get_register(5), get_register(6));
+        sb_insert_mov(&mul_src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&mul_src, "\xC3");
+    add_word(word_table, size, "*", mul_src);
+
+    String_Builder div_src = {0};
+        sb_insert_subimm(&div_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&div_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&div_src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_mov(&div_src, reg_make_ptr(get_register(0),-8), get_register(6));
+        sb_insert_idiv(&div_src, get_register(5), get_register(6));
+        sb_insert_mov(&div_src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&div_src, "\xC3");
+    add_word(word_table, size, "/", div_src);
+    
+    String_Builder dup_src = {0};
+        sb_insert_mov(&dup_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&dup_src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_mov(&dup_src, get_register(5), reg_make_ptr(get_register(0),0));
+        sb_insert_addimm(&dup_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_append_cstr(&dup_src, "\xC3");
+    add_word(word_table, size, "dup", dup_src);
+
+    String_Builder drop_src = {0};
+        sb_insert_subimm(&drop_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_append_cstr(&drop_src, "\xC3");
+    add_word(word_table, size, "drop", drop_src);
+
+    String_Builder over_src = {0};
+        sb_insert_mov(&over_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&over_src, reg_make_ptr(get_register(0),-16), get_register(5));
+        sb_insert_mov(&over_src, get_register(5), reg_make_ptr(get_register(0),0));
+        sb_insert_addimm(&over_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_append_cstr(&over_src, "\xC3");
+        add_word(word_table, size, "over", over_src);
+        
+    String_Builder nip_src = {0};
+        sb_insert_subimm(&nip_src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&nip_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&nip_src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_mov(&nip_src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&nip_src, "\xC3");
+    add_word(word_table, size, "nip", nip_src);
+
+    String_Builder swap_src = {0};
+        sb_insert_mov(&swap_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&swap_src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_mov(&swap_src, reg_make_ptr(get_register(0),-16), get_register(6));
+        sb_insert_mov(&swap_src, get_register(5), reg_make_ptr(get_register(0),-16));
+        sb_insert_mov(&swap_src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&swap_src, "\xC3");
+    add_word(word_table, size, "swap", swap_src);
+
     add_word(word_table, size, "rot", (String_Builder){.items = "\x48\x8B\x39\x4C\x8B\x67\xF8\x4C\x8B\x6F\xE8\x4C\x89\x6F\xF8\x4C\x8B\x6F\xF0\x4C\x89\x67\xF0\x4C\x89\x6F\xE8\xC3", .count = 28, .capacity = 28});
-    String_Builder dot_source = {0};
-        sb_append_cstr(&dot_source, PROLOGUE);
-        sb_append_cstr(&dot_source, "\x48\x83\x29\x08\x48\x8B\x09\x48\x8B\x09");
-        sb_append_cstr(&dot_source, "\x48\xB8");
-        void(*printfn)(int64_t) = printnum;
-        sb_append_buf(&dot_source, &printfn, sizeof(void*));
-        sb_append_cstr(&dot_source, "\xFF\xD0");
-        sb_append_cstr(&dot_source, EPILOGUE);
-        sb_append_cstr(&dot_source, "\xC3");
-    add_word(word_table, size, ".", dot_source);
+    String_Builder rot_src = {0};
+        sb_insert_mov(&rot_src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&rot_src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_mov(&rot_src, reg_make_ptr(get_register(0),-24), get_register(6));
+        sb_insert_mov(&rot_src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_insert_mov(&rot_src, reg_make_ptr(get_register(0),-16), get_register(6));
+        sb_insert_mov(&rot_src, get_register(5), reg_make_ptr(get_register(0),-16));
+        sb_insert_mov(&rot_src, get_register(6), reg_make_ptr(get_register(0),-24));
+        sb_append_cstr(&rot_src, "\xC3");
+    add_word(word_table, size, "rot", rot_src);
+
+    String_Builder dot_src = {0};
+        String_Builder param_code = {0};
+            sb_insert_subimm(&param_code, reg_make_ptr(get_register(1), 0), 0x8);
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(1), 0), get_register(1));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(1), 0), get_register(1));
+        sb_insert_call(&dot_src, printnum, &param_code);
+        sb_append_cstr(&dot_src, "\xC3");
+    add_word(word_table, size, ".", dot_src);
 }
 
 void add_word(Word_Table_Item **word_table, size_t size, const char *name, String_Builder source)

@@ -1,7 +1,7 @@
 <img src="smorth.png" width="256px"/>
 
 ## Warning
-smorth only supports windows at the moment, and is very buggy.
+smorth is just a small project I like to work on in my free time, and is very buggy at the moment.
 
 ## Compilation instructions
 first bootstrap the buildsystem by compiling nob.c \
