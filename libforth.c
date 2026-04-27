@@ -280,9 +280,9 @@ void literal_impl(Program_State *ps)
 
 void recurse_impl(Program_State *ps)
 {
-    size_t handle=0;
-    for(ptrdiff_t i=ps->cfi-1; i>=0;--i) if(strcmp("colon-sys", ps->cf_stack[i].kind)==0) {handle=ps->cf_stack[i].handle; break;}
-    if(handle) sb_insert_rel_call(&ps->word_source, handle);
+    Control_Flow_Stack_Item *item=NULL;
+    for(ptrdiff_t i=ps->cfi-1; i>=0;--i) if(strcmp("colon-sys", ps->cf_stack[i].kind)==0) {item=&ps->cf_stack[i]; break;}
+    if(item) sb_insert_rel_call(&ps->word_source, item->handle);
     else UNREACHABLE("invalid address stack");
 }
 
