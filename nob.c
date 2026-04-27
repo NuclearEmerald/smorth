@@ -11,7 +11,7 @@ int main(int argc, char **argv)
     Nob_Cmd cmd = {0};
     nob_cc(&cmd);
     nob_cc_flags(&cmd);
-    nob_cc_inputs(&cmd, "main.c", "codegen.c");
+    nob_cc_inputs(&cmd, "main.c", "codegen.c", "interpreter.c", "libforth.c");
     nob_cc_output(&cmd, "smorth");
     if(debug) nob_cmd_append(&cmd, "-ggdb");
     if (!nob_cmd_run(&cmd)) return 1;

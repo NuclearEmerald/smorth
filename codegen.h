@@ -43,14 +43,30 @@ typedef struct
 }
 Register;
 
+typedef enum
+{
+    EQ=0x4,
+    NE,
+    LT=0xC,
+    GE,
+    LE,
+    GT,
+}
+COND_FLAGS;
+
 #define REG_RAX (Register){.id=RAX, .kind=REGISTER}
 #define REG_RBP (Register){.id=RBP, .kind=REGISTER}
 
-void sb_insert_call(String_Builder *sb, void *fp, String_Builder *param_code);
+void sb_insert_C_call(String_Builder *sb, void *fp, String_Builder *param_code);
+void sb_insert_call(String_Builder *sb, void *fp);
+void sb_insert_rel_call(String_Builder *sb, size_t jmp_handle);
+
 void sb_insert_movabs(String_Builder *sb, Register reg, void *v);
 void sb_insert_mov(String_Builder *sb, Register src, Register dst);
+void sb_insert_inc(String_Builder *sb, Register reg);
 void sb_insert_addimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_add(String_Builder *sb, Register src, Register dst);
+void sb_insert_dec(String_Builder *sb, Register reg);
 void sb_insert_subimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_sub(String_Builder *sb, Register src, Register dst);
 void sb_insert_imulimm(String_Builder *sb, Register reg, int32_t v);
@@ -60,13 +76,20 @@ void sb_insert_idiv(String_Builder *sb, Register src, Register dst);
 void sb_insert_cmpimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_cmp(String_Builder *sb, Register src, Register dst);
 
-size_t sb_start_jz(String_Builder *sb);
-size_t sb_start_jnz(String_Builder *sb);
-void sb_end_jcond(String_Builder *sb, size_t start_handle);
+void sb_insert_pushimm(String_Builder *sb, int32_t v);
+void sb_insert_push(String_Builder *sb, Register reg);
+void sb_insert_pop(String_Builder *sb, Register reg);
+
+void sb_insert_get_flagimm(String_Builder *sb, Register reg, int32_t v, COND_FLAGS flag);
+void sb_insert_get_flag(String_Builder *sb, Register src, Register dst, COND_FLAGS flag);
+
+size_t sb_start_jmp(String_Builder *sb);
+size_t sb_start_jcc(String_Builder *sb, COND_FLAGS flag);
+void sb_end_jmp(String_Builder *sb, size_t start_handle);
 
 size_t get_jmp_marker(String_Builder *sb);
-void sb_insert_jz(String_Builder *sb, size_t jmp_handle);
-void sb_insert_jnz(String_Builder *sb, size_t jmp_handle);
+void sb_insert_jmp(String_Builder *sb, size_t jmp_handle);
+void sb_insert_jcc(String_Builder *sb, size_t jmp_handle, COND_FLAGS flag);
 
 Register get_register(uint8_t n);
 Register reg_make_ptr(Register reg, int32_t offset);

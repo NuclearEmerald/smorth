@@ -1,15 +1,64 @@
 #include "codegen.h"
 
+void sb_insert_pushimm(String_Builder *sb, int32_t v)
+{
+    sb_append(sb, '\x68');
+    sb_append_buf(sb, &v, sizeof(int32_t));
+}
 
-void sb_insert_call(String_Builder *sb, void *fp, String_Builder *param_code)
+void sb_insert_push(String_Builder *sb, Register reg)
+{
+    if(reg.id&8) sb_append(sb, '\x41');
+    if(reg.kind==REGISTER) sb_append(sb, '\x50'|(reg.id&7));
+    else
+    {
+        sb_append(sb, '\xFF');
+        sb_append(sb, (reg.kind<<6)|(reg.id&7)|(6<<3));
+    }
+
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_pop(String_Builder *sb, Register reg)
+{
+    if(reg.id&8) sb_append(sb, '\x41');
+    if(reg.kind==REGISTER) sb_append(sb, '\x58'|(reg.id&7));
+    else
+    {
+        sb_append(sb, '\x8F');
+        sb_append(sb, (reg.kind<<6)|(reg.id&7));
+    }
+
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+
+void sb_insert_C_call(String_Builder *sb, void *fp, String_Builder *param_code)
 {
     PROLOGUE(sb);
     if(param_code!=NULL) sb_append_buf(sb, param_code->items, param_code->count);
     sb_insert_movabs(sb, REG_RAX, fp);
     sb_append(sb, '\xFF');
-    sb_append(sb, '\xD0'|get_register(0).id);
+    sb_append(sb, '\xD0'|RAX);
     EPILOGUE(sb);
     return;
+}
+
+void sb_insert_call(String_Builder *sb, void *fp)
+{
+    sb_insert_movabs(sb, REG_RAX, fp);
+    sb_append(sb, '\xFF');
+    sb_append(sb, '\xD0'|RAX);
+    return;
+}
+
+void sb_insert_rel_call(String_Builder *sb, size_t jmp_handle)
+{
+    int32_t dif = (int32_t)(jmp_handle-(sb->count+5));
+    sb_append(sb, '\xE8');
+    sb_append_buf(sb, &dif, sizeof(int32_t));
 }
 
 void sb_insert_movabs(String_Builder *sb, Register reg, void *v)
@@ -97,6 +146,24 @@ void sb_insert_sub(String_Builder *sb, Register src, Register dst)
     if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
 }
 
+void sb_insert_inc(String_Builder *sb, Register reg)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xFF');
+    sb_append(sb, (reg.kind<<6)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_dec(String_Builder *sb, Register reg)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xFF');
+    sb_append(sb, (reg.kind<<6)|(1<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
 void sb_insert_imulimm(String_Builder *sb, Register reg, int32_t v)
 {
     sb_append(sb, '\x48'|((reg.id&8)?0x5:0x0));
@@ -170,20 +237,54 @@ void sb_insert_cmp(String_Builder *sb, Register src, Register dst)
     if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
 }
 
-
-size_t sb_start_jz(String_Builder *sb)
+void sb_insert_ze(String_Builder *sb, Register reg)
 {
-    sb_append_buf(sb, "\x0F\x84\x00\x00\x00\x00", 6);
+    if(reg.kind!=REGISTER) UNREACHABLE("reg cannot be mem");
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0)|((reg.id&8)?0x4:0x0));
+    sb_append_cstr(sb, "\x0F\xB6");
+    sb_append(sb, (3<<6)|(reg.id&7)|((reg.id&7)<<3));
+}
+
+void sb_insert_setcc(String_Builder *sb, Register reg, COND_FLAGS flag)
+{
+    if(reg.id>3) sb_append(sb, '\x40'|((reg.id&8)?1:0));
+    sb_append(sb, '\x0F');
+    sb_append(sb, '\x90'|flag);
+    sb_append(sb, (3<<6)|(reg.id&7));
+}
+
+void sb_insert_get_flagimm(String_Builder *sb, Register reg, int32_t v, COND_FLAGS flag)
+{
+    if(reg.kind!=REGISTER) UNREACHABLE("reg cannot be mem");
+    sb_insert_cmpimm(sb, reg, v);
+    sb_insert_setcc(sb, reg, flag);
+    sb_insert_ze(sb, reg);
+}
+
+void sb_insert_get_flag(String_Builder *sb, Register src, Register dst, COND_FLAGS flag)
+{
+    if(dst.kind!=REGISTER) UNREACHABLE("dst cannot be mem");
+    sb_insert_cmp(sb, src, dst);
+    sb_insert_setcc(sb, dst, flag);
+    sb_insert_ze(sb, dst);
+}
+
+size_t sb_start_jmp(String_Builder *sb)
+{
+    sb_append(sb, '\xE9');
+    sb_append_buf(sb, "\x00\x00\x00\x00", 4);
     return sb->count;
 }
 
-size_t sb_start_jnz(String_Builder *sb)
+size_t sb_start_jcc(String_Builder *sb, COND_FLAGS flag)
 {
-    sb_append_buf(sb, "\x0F\x85\x00\x00\x00\x00", 6);
+    sb_append(sb, '\x0F');
+    sb_append(sb, '\x80'|flag);
+    sb_append_buf(sb, "\x00\x00\x00\x00", 4);
     return sb->count;
 }
 
-void sb_end_jcond(String_Builder *sb, size_t start_handle)
+void sb_end_jmp(String_Builder *sb, size_t start_handle)
 {
     int32_t dif = (int32_t)(sb->count-start_handle);
     memcpy(&sb->items[start_handle-4], &dif, sizeof(int32_t));
@@ -193,17 +294,18 @@ void sb_end_jcond(String_Builder *sb, size_t start_handle)
 
 size_t get_jmp_marker(String_Builder *sb) {return sb->count;}
 
-void sb_insert_jz(String_Builder *sb, size_t jmp_handle)
+void sb_insert_jmp(String_Builder *sb, size_t jmp_handle)
 {
-    int32_t dif = (int32_t)(jmp_handle-(sb->count+6));
-    sb_append_cstr(sb, "\x0F\x84");
+    int32_t dif = (int32_t)(jmp_handle-(sb->count+5));
+    sb_append(sb, '\xE9');
     sb_append_buf(sb, &dif, sizeof(int32_t));
 }
 
-void sb_insert_jnz(String_Builder *sb, size_t jmp_handle)
+void sb_insert_jcc(String_Builder *sb, size_t jmp_handle, COND_FLAGS flag)
 {
     int32_t dif = (int32_t)(jmp_handle-(sb->count+6));
-    sb_append_cstr(sb, "\x0F\x85");
+    sb_append(sb, '\x0F');
+    sb_append(sb, '\x80'|flag);
     sb_append_buf(sb, &dif, sizeof(int32_t));
 }
 
