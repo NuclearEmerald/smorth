@@ -24,11 +24,12 @@
 
 : cells 8 * ;
 
+: char+ 1+ ;
+
 : chars ;
 
 : constant
-  :
-  postpone literal
+  : postpone literal
   postpone ;
 ;
 
@@ -43,6 +44,10 @@
     constant 
 ;
 
+variable base
+: decimal 10 base ! ;
+: hex 16 base ! ;
+
 : [ immediate 
     0 state ! 
 ;
@@ -52,6 +57,38 @@
 ;
 
 : ] 1 state ! ;
+
+( non standard word )
+: insert immediate
+    postpone ['] ['] compile, compile,
+;
+
+: do immediate
+    postpone (do)
+    postpone begin
+;
+
+: ?do immediate
+    insert 2dup
+    postpone (do)
+    insert = postpone if 
+        insert leave
+    postpone then
+    postpone begin
+;
+
+: ." immediate
+    state @ if
+        34 parse
+        swap 
+        postpone literal
+        postpone literal
+        insert type
+    else
+        34 parse 
+        type
+    then
+;
 
 
 

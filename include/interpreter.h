@@ -2,7 +2,7 @@
 #define INTERPRETER_H
 
 
-#include "nob.h"
+#include <nob.h>
 
 typedef enum TokenKind
 {

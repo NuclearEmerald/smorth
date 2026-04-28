@@ -1,12 +1,12 @@
 #define NOB_IMPLEMENTATION
-#include "nob.h"
+#include <nob.h>
 #undef NOB_IMPLEMENTATION
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
 
-#include "interpreter.h"
-#include "libforth.h"
+#include <interpreter.h>
+#include <libforth.h>
 
 
 int main(int argc, char **argv)
@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     program_state.dp = program_state.data;
     
     populate_builtin_words(&program_state);
-    load_library("core.fth", &program_state);
+    load_library("lib/core.fth", &program_state);
 
     bool st=false;
     shift(argv, argc);

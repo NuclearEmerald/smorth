@@ -1,7 +1,7 @@
 #ifndef CODEGEN_H
 #define CODEGEN_H
 
-#include "nob.h"
+#include <nob.h>
 
 
 #define PROLOGUE(sb) sb_append_cstr(sb, "\x55\x48\x89\xE5\x48\x83\xEC\x30"); sb_insert_mov(sb, get_register(1), reg_make_ptr(REG_RBP,-8)); sb_insert_mov(sb, get_register(2), reg_make_ptr(REG_RBP,-16))
@@ -71,7 +71,7 @@ void sb_insert_subimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_sub(String_Builder *sb, Register src, Register dst);
 void sb_insert_imulimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_imul(String_Builder *sb, Register src, Register dst);
-void sb_insert_idivimm(String_Builder *sb, Register reg, int32_t v);
+void sb_insert_idivabs(String_Builder *sb, Register reg, int64_t v);
 void sb_insert_idiv(String_Builder *sb, Register src, Register dst);
 void sb_insert_cmpimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_cmp(String_Builder *sb, Register src, Register dst);

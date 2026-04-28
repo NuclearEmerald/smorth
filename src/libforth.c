@@ -1,5 +1,5 @@
-#include "libforth.h"
-#include "codegen.h"
+#include <libforth.h>
+#include <codegen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -27,7 +27,7 @@ void load_library(const char *lib_path, Program_State *ps)
 
 // core words
 // --------------------------------------------------------------------------------------
-void printnum(int64_t num)
+void dot_impl(int64_t num)
 {
     printf("%" PRId64 " ", num);
     return;
@@ -101,7 +101,7 @@ void until_impl(Program_State *ps)
     else UNREACHABLE("invalid address stack");
 }
 
-void do_impl(Program_State *ps)
+void do_init_impl(Program_State *ps)
 {
     sb_insert_mov(&ps->word_source, reg_make_ptr(get_register(1),0), get_register(0));
     sb_insert_mov(&ps->word_source, reg_make_ptr(get_register(0),-8), get_register(5));
@@ -112,7 +112,7 @@ void do_impl(Program_State *ps)
     size_t diff = get_jmp_marker(&ps->word_source);
     sb_insert_pop(&ps->word_source, get_register(0));
     sb_insert_addimm(&ps->word_source, get_register(0), 0);
-    ps->cf_stack[ps->cfi++] = (Control_Flow_Stack_Item){.kind="nest-sys", .handle=ps->word_source.count};
+    ps->cf_stack[ps->cfi++] = (Control_Flow_Stack_Item){.kind="do-sys", .handle=ps->word_source.count};
     sb_insert_addimm(&ps->word_source, get_register(0), get_jmp_marker(&ps->word_source)-diff);
     sb_insert_push(&ps->word_source, get_register(0));
 
@@ -120,46 +120,12 @@ void do_impl(Program_State *ps)
     sb_insert_push(&ps->word_source, get_register(6));
     sb_insert_push(&ps->word_source, REG_RBP);
     sb_append_cstr(&ps->word_source, "\x48\x89\xE5");
-    ps->cf_stack[ps->cfi++] = (Control_Flow_Stack_Item){.kind="do-sys", .handle=get_jmp_marker(&ps->word_source)};
-}
-
-void question_do_impl(Program_State *ps)
-{
-    sb_insert_mov(&ps->word_source, reg_make_ptr(get_register(1),0), get_register(0));
-    sb_insert_mov(&ps->word_source, reg_make_ptr(get_register(0),-8), get_register(5));
-    sb_insert_mov(&ps->word_source, reg_make_ptr(get_register(0),-16), get_register(6));
-    sb_insert_subimm(&ps->word_source, reg_make_ptr(get_register(1),0), 0x10);
-
-    sb_insert_rel_call(&ps->word_source, ps->word_source.count+5);
-    size_t diff = get_jmp_marker(&ps->word_source);
-    sb_insert_pop(&ps->word_source, get_register(0));
-    sb_insert_addimm(&ps->word_source, get_register(0), 0);
-    ps->cf_stack[ps->cfi++] = (Control_Flow_Stack_Item){.kind="nest-sys", .handle=ps->word_source.count};
-    sb_insert_addimm(&ps->word_source, get_register(0), get_jmp_marker(&ps->word_source)-diff);
-    sb_insert_push(&ps->word_source, get_register(0));
-    
-    sb_insert_push(&ps->word_source, get_register(5));
-    sb_insert_push(&ps->word_source, get_register(6));
-    sb_insert_push(&ps->word_source, REG_RBP);
-    sb_append_cstr(&ps->word_source, "\x48\x89\xE5");
-
-    sb_insert_mov(&ps->word_source, reg_make_ptr(REG_RBP,0x8), get_register(5));
-    sb_insert_mov(&ps->word_source, reg_make_ptr(REG_RBP,0x10), get_register(6));
-    sb_insert_cmp(&ps->word_source, get_register(5), get_register(6));
-    diff = sb_start_jcc(&ps->word_source, NE);
-    sb_insert_pop(&ps->word_source, REG_RBP);
-    sb_insert_pop(&ps->word_source, get_register(0));
-    sb_insert_pop(&ps->word_source, get_register(0));
-    sb_append(&ps->word_source, '\xC3');
-    sb_end_jmp(&ps->word_source, diff);
-
-    ps->cf_stack[ps->cfi++] = (Control_Flow_Stack_Item){.kind="do-sys", .handle=get_jmp_marker(&ps->word_source)};
 }
 
 void plus_loop_impl(Program_State *ps)
 {
     Control_Flow_Stack_Item item = ps->cf_stack[--ps->cfi];
-    if (strcmp(item.kind, "do-sys")==0)
+    if (strcmp(item.kind, "dist")==0)
     {
         sb_insert_subimm(&ps->word_source, reg_make_ptr(get_register(1),0), 0x8);
         sb_insert_mov(&ps->word_source, reg_make_ptr(get_register(1),0), get_register(0));
@@ -177,7 +143,7 @@ void plus_loop_impl(Program_State *ps)
     else UNREACHABLE("invalid address stack");
 
      item = ps->cf_stack[--ps->cfi];
-     if(strcmp(item.kind, "nest-sys")==0) sb_end_jmp(&ps->word_source, item.handle);
+     if(strcmp(item.kind, "do-sys")==0) sb_end_jmp(&ps->word_source, item.handle);
      else UNREACHABLE("invalid address stack");
 }
 
@@ -320,8 +286,7 @@ void populate_core_words(Program_State *ps)
         sb_insert_addimm(&src, reg_make_ptr(get_register(6), 0), 0x8);
         sb_insert_mov(&src, reg_make_ptr(get_register(6),0), get_register(6));
         sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(6),-8));
-        sb_insert_subimm(&src, get_register(6), 0x8);
-        sb_insert_mov(&src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1),0), 0x8);
         sb_append_cstr(&src, "\xC3");
     add_word(&ps->word_table, ",", src);
 
@@ -481,12 +446,24 @@ void populate_core_words(Program_State *ps)
     add_word(&ps->word_table, "tuck", src);
 
     src.count = 0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(5));
+        sb_insert_movabs(&src, get_register(6), ps->stack);
+        sb_insert_sub(&src, get_register(6), get_register(5));
+        sb_insert_idivabs(&src, get_register(5), sizeof(int64_t));
+        sb_insert_subimm(&src, get_register(5), 1);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(0),0));
+        sb_insert_addimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_append_cstr(&src, "\xC3");
+    add_word(&ps->word_table, "depth", src);
+
+    src.count = 0;
     {
         String_Builder param_code = {0};
             sb_insert_subimm(&param_code, reg_make_ptr(get_register(1), 0), 0x8);
             sb_insert_mov(&param_code, reg_make_ptr(get_register(1), 0), get_register(1));
             sb_insert_mov(&param_code, reg_make_ptr(get_register(1), 0), get_register(1));
-            sb_insert_C_call(&src, printnum, &param_code);
+            sb_insert_C_call(&src, dot_impl, &param_code);
         sb_free(param_code);
         sb_append_cstr(&src, "\xC3");
     }
@@ -556,21 +533,11 @@ void populate_core_words(Program_State *ps)
     {
         String_Builder param_code = {0};
             sb_insert_movabs(&param_code, get_register(1), ps);
-            sb_insert_C_call(&src, do_impl, &param_code);
+            sb_insert_C_call(&src, do_init_impl, &param_code);
         sb_free(param_code);
         sb_append_cstr(&src, "\xC3");
     }
-    add_word_imm(&ps->word_table, "do", src);
-
-    src.count = 0;
-    {
-        String_Builder param_code = {0};
-            sb_insert_movabs(&param_code, get_register(1), ps);
-            sb_insert_C_call(&src, question_do_impl, &param_code);
-        sb_free(param_code);
-        sb_append_cstr(&src, "\xC3");
-    }
-    add_word_imm(&ps->word_table, "?do", src);
+    add_word_imm(&ps->word_table, "(do)", src);
 
     src.count = 0;
         sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
@@ -595,6 +562,21 @@ void populate_core_words(Program_State *ps)
         sb_insert_pop(&src, get_register(0));
         sb_append(&src, '\xC3');
     add_word(&ps->word_table, "leave", src);
+
+    src.count = 0;
+        sb_insert_pop(&src, get_register(5));
+        sb_insert_pop(&src, REG_RBP);
+        sb_insert_pop(&src, get_register(0));
+        sb_insert_pop(&src, get_register(0));
+        sb_insert_pop(&src, get_register(0));
+        sb_insert_push(&src, get_register(5));
+        sb_append(&src, '\xC3');
+    add_word(&ps->word_table, "unloop", src);
+
+    src.count = 0;
+        sb_insert_pop(&src, get_register(0));
+        sb_append(&src, '\xC3');
+    add_word(&ps->word_table, "exit", src);
 
     src.count = 0;
     {

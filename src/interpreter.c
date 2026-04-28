@@ -1,5 +1,5 @@
-#include "interpreter.h"
-#include "codegen.h"
+#include <interpreter.h>
+#include <codegen.h>
 
 void interpret(Program_State *program_state)
 {
