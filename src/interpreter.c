@@ -62,7 +62,7 @@ void interpret(Program_State *program_state)
 }
 
 
-bool isnumber(const char *raw)
+bool str_isnumber(const char *raw)
 {
     size_t i = 0;
     if (raw[i]=='-' || raw[i]=='+') i++;
@@ -82,7 +82,7 @@ Token next_token(String_View *source)
     while (source->count>0 && !isspace(source->data[0])) sb_append(&rawsb, *sv_chop_left(source, 1).data);
     if (source->count>0) sb_append_null(&rawsb);
     String_View raw = sb_to_sv(rawsb);
-    if (isnumber(raw.data))
+    if (str_isnumber(raw.data))
     {
         int64_t number = atoll(raw.data);
         if ((strcmp(raw.data, "0") && strcmp(raw.data, "-0") && strcmp(raw.data, "+0")) && number==0) exit(1);
@@ -98,6 +98,7 @@ void exfreesb(void *ptr, size_t len);
 void add_word_impl(Word_Table *word_table, const char *name, String_Builder source, bool immediate)
 {
     String_Builder tmp = {0};
+    sb_insert_word_prologue(&tmp);
     sb_append_buf(&tmp, source.items, source.count);
     source = tmp;
     
@@ -143,6 +144,7 @@ void *exallocsb(String_Builder *sb)
 #else
     void *ptr = mmap(NULL, sb->count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memcpy(ptr, sb->items, sb->count);
+    __builtin___clear_cache(ptr, (char *)ptr + sb->count);
     mprotect(ptr, sb->count, PROT_READ | PROT_EXEC);
     return ptr;
 #endif
