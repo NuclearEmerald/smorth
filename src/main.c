@@ -48,6 +48,7 @@ int main(int argc, char **argv)
         {
             program_state.source.count=0;
             sb_append_cstr(&program_state.source, ".s");
+            sb_append_null(&program_state.source);
             program_state.parse_offset=0;
             interpret(&program_state);
         }
