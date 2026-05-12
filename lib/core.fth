@@ -15,6 +15,8 @@
     ' compile, 
 ;
 
+: ?dup dup if dup then ;
+
 : align 
     here aligned 
     here - allot 
@@ -77,21 +79,28 @@ variable base
     postpone begin
 ;
 
-: ." immediate
+: s" immediate
     state @ if
         34 parse
         swap 
         postpone literal
         postpone literal
+    else 34 parse 
+    then
+;
+
+: ." immediate
+    state @ if
+        postpone s"
         insert type
-    else
-        34 parse 
-        type
+    else postpone s" type
     then
 ;
 
 
 
+
+( extended words )
 
 : .( immediate
     41 parse type
@@ -100,4 +109,9 @@ variable base
 : again immediate
     0 postpone literal
     postpone until
+;
+
+: \ immediate
+    source >in 
+    ! drop
 ;

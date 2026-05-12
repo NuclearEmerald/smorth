@@ -90,6 +90,35 @@ void sb_insert_mov(String_Builder *sb, Register src, Register dst)
     if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
 }
 
+void sb_insert_movabs8(String_Builder *sb, Register reg, void *v)
+{
+    if(reg.kind!=REGISTER) UNREACHABLE("unsupported register operand");
+    sb_append(sb, '\x40'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xB8'|(reg.id&7));
+    sb_append_buf(sb, &v, sizeof(void*));
+    return;
+}
+
+void sb_insert_mov8(String_Builder *sb, Register src, Register dst)
+{
+    if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
+
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
+    {
+        Register tmp = src;
+        src = dst;
+        dst = tmp;
+    }
+
+    sb_append(sb, '\x40'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x89':'\x8B');
+
+    sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
+    if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
+    if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
+}
+
 void sb_insert_addimm(String_Builder *sb, Register reg, int32_t v)
 {
     sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));

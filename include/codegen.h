@@ -4,8 +4,8 @@
 #include <nob.h>
 
 
-#define PROLOGUE(sb) sb_append_cstr(sb, "\x55\x48\x89\xE5\x48\x83\xEC\x30"); sb_insert_mov(sb, get_register(1), reg_make_ptr(REG_RBP,-8)); sb_insert_mov(sb, get_register(2), reg_make_ptr(REG_RBP,-16))
-#define EPILOGUE(sb) sb_insert_mov(sb, reg_make_ptr(REG_RBP,-8), get_register(1)); sb_insert_mov(sb, reg_make_ptr(REG_RBP,-16), get_register(2)); sb_append_cstr(sb, "\x48\x83\xC4\x30\x5D")
+#define PROLOGUE(sb) { sb_append_cstr(sb, "\x55\x48\x89\xE5\x48\x83\xEC\x40"); sb_insert_mov(sb, get_register(1), reg_make_ptr(REG_RBP,-8)); sb_insert_mov(sb, get_register(2), reg_make_ptr(REG_RBP,-16)); sb_insert_mov(sb, get_register(3), reg_make_ptr(REG_RBP,-24)); }
+#define EPILOGUE(sb) { sb_insert_mov(sb, reg_make_ptr(REG_RBP,-8), get_register(1)); sb_insert_mov(sb, reg_make_ptr(REG_RBP,-16), get_register(2)); sb_insert_mov(sb, reg_make_ptr(REG_RBP,-24), get_register(3)); sb_append_cstr(sb, "\x48\x83\xC4\x40\x5D"); }
 
 
 typedef enum

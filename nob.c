@@ -9,7 +9,11 @@ int main(int argc, char **argv)
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     bool debug = false;
-    for(int i=0; i<argc; i++) if(strcmp(argv[i],"-dbg")==0) debug=true;
+    bool run = false;
+    for(int i=0; i<argc; i++) {
+        if(strcmp(argv[i],"-dbg")==0) debug=true; 
+        if(strcmp(argv[i],"-run")==0) run=true;
+    }
 
     Nob_Cmd cmd = {0};
     nob_cc(&cmd);
@@ -19,5 +23,11 @@ int main(int argc, char **argv)
     nob_cmd_append(&cmd, "-I"INCLUDE);
     if(debug) nob_cmd_append(&cmd, "-ggdb");
     if (!nob_cmd_run(&cmd)) return 1;
+
+    if(run)
+    {
+        nob_cmd_append(&cmd, "./smorth");
+        if (!nob_cmd_run(&cmd)) return 1;
+    }
     return 0;
 }

@@ -14,6 +14,7 @@ int main(int argc, char **argv)
     Program_State program_state = {0};
     program_state.sp = program_state.stack;
     program_state.dp = program_state.data;
+    sb_append_null(&program_state.source);
     
     populate_builtin_words(&program_state);
     load_library("lib/core.fth", &program_state);
@@ -33,20 +34,21 @@ int main(int argc, char **argv)
 
     printf("SMORTH v0.5\nby (re)tur(n) 0;\nthe bye word can be used at any time to quit\n");
 
-    String_Builder line = {0};
-    sb_append_null(&line);
+    
     while (true)
     {
-        line.count=0;
+        program_state.source.count=0;
         char c;
-        while ((c = getchar())!='\n') sb_append(&line, c);
-        sb_append_null(&line);
-        program_state.ib = sb_to_sv(line);
+        while ((c = getchar())!='\n') sb_append(&program_state.source, c);
+        sb_append_null(&program_state.source);
+        program_state.parse_offset=0;
         
         interpret(&program_state);
         if(st)
         {
-            program_state.ib = sv_from_cstr(".s");
+            program_state.source.count=0;
+            sb_append_cstr(&program_state.source, ".s");
+            program_state.parse_offset=0;
             interpret(&program_state);
         }
         printf("ok\n");
