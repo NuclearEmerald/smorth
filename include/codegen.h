@@ -61,8 +61,12 @@ void sb_insert_C_call(String_Builder *sb, void *fp, String_Builder *param_code);
 void sb_insert_call(String_Builder *sb, void *fp);
 void sb_insert_rel_call(String_Builder *sb, size_t jmp_handle);
 
+void sb_insert_ze(String_Builder *sb, Register reg);
+
 void sb_insert_movabs(String_Builder *sb, Register reg, void *v);
 void sb_insert_mov(String_Builder *sb, Register src, Register dst);
+void sb_insert_movabs8(String_Builder *sb, Register reg, void *v);
+void sb_insert_mov8(String_Builder *sb, Register src, Register dst);
 void sb_insert_inc(String_Builder *sb, Register reg);
 void sb_insert_addimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_add(String_Builder *sb, Register src, Register dst);

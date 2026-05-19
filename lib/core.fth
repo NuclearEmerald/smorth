@@ -26,6 +26,8 @@
 
 : cells 8 * ;
 
+: char parse-name drop c@ ;
+
 : char+ 1+ ;
 
 : chars ;
@@ -34,6 +36,8 @@
   : postpone literal
   postpone ;
 ;
+
+: cr 10 emit ;
 
 : loop immediate
     1 postpone literal
@@ -56,6 +60,10 @@ variable base
 
 : ['] immediate 
     ' postpone literal 
+;
+
+: [char] immediate
+    char postpone literal
 ;
 
 : ] 1 state ! ;
@@ -88,6 +96,10 @@ variable base
     else 34 parse 
     then
 ;
+
+: space bl emit ;
+
+: spaces 0 ?do space loop ;
 
 : ." immediate
     state @ if

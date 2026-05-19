@@ -27,8 +27,13 @@ int main(int argc, char **argv)
         if (strcmp(arg, "-st")==0) st=true;
         else
         {
-            printf("unknown flag(%s)\n", arg);
-            return 1;
+            String_View source = sv_from_cstr(arg);
+            if(sv_end_with(source, ".fth")) load_library(arg, &program_state);
+            else
+            {
+                printf("unknown flag(%s)\n", arg);
+                return 1;
+            }
         }
     }
 
