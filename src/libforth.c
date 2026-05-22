@@ -302,29 +302,50 @@ void then_impl(Program_State *ps)
 void parse_impl(Program_State *ps)
 {
     char delim = *(--ps->sp);
-
-    while (ps->parse_offset<ps->source.count && isspace(ps->source.items[ps->parse_offset])) ps->parse_offset++;
     if(ps->parse_offset>=ps->source.count) exit(1);
 
-    String_Builder ccc = {0};
-    while (ps->parse_offset<ps->source.count && ps->source.items[ps->parse_offset]!=delim) sb_append(&ccc, ps->source.items[ps->parse_offset++]);
-    if (ps->parse_offset<ps->source.count) 
-    {
-        sb_append_null(&ccc);
-        ps->parse_offset++;
-    }
+    String_View ccc = {.data=ps->source.items+ps->parse_offset, .count=0};
+    while (ps->parse_offset<ps->source.count && ps->source.items[ps->parse_offset]!=delim) {ps->parse_offset++; ccc.count++;}
+    if (ps->parse_offset<ps->source.count) ps->parse_offset++;
     
-    *(ps->sp++) = (int64_t)ccc.items;
+    *(ps->sp++) = (int64_t)ccc.data;
     *(ps->sp++) = ccc.count;
 
     return;
 }
 
+char _word_buf[256]={0};
+void word_impl(Program_State *ps)
+{
+    char delim = *(--ps->sp);
+
+    while (ps->parse_offset<ps->source.count && ps->source.items[ps->parse_offset]==delim) ps->parse_offset++;
+    if(ps->parse_offset>=ps->source.count) exit(1);
+
+    _word_buf[0]=0;
+    for(size_t i=1; i<256; i++)
+    {
+        if(ps->parse_offset>=ps->source.count) break;
+        if (ps->source.items[ps->parse_offset]==delim) {ps->parse_offset++; break;}
+
+        _word_buf[i]=ps->source.items[ps->parse_offset++];
+        _word_buf[0]++;
+    }
+    
+    *(ps->sp++) = (int64_t)_word_buf;
+    return;
+}
+
 void find_impl(Program_State *ps)
 {
-    const char *name = *(const char **)(--ps->sp);
+    const char *cs = *(const char **)(--ps->sp);
+    size_t len = *(cs);
+    String_Builder name = {0};
+    sb_append_buf(&name, cs+1, len);
+    sb_append_null(&name);
 
-    Execution_Token *word = get_word(&ps->word_table, name);
+    Execution_Token *word = get_word(&ps->word_table, name.items);
+    sb_free(name);
     if(word!=NULL)
     {
         *(ps->sp++) = (int64_t)word;
@@ -332,7 +353,7 @@ void find_impl(Program_State *ps)
     }
     else
     {
-        *(ps->sp++) = (int64_t)name;
+        *(ps->sp++) = (int64_t)cs;
         *(ps->sp++) = 0;
     }
 
@@ -388,6 +409,7 @@ void type_impl(Program_State *ps)
         sb_append_buf(&slice, buf, len);
         sb_append_null(&slice);
         printf("%s", slice.items);
+        sb_free(slice);
     }
 }
 
@@ -423,6 +445,17 @@ void populate_core_words(Program_State *ps)
         sb_insert_mov(&src, get_register(6), reg_make_ptr(get_register(5),0));
         sb_append_cstr(&src, "\xC3");
     create_word(&ps->word_table, "!", src);
+
+    src.count = 0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x18);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0x10), get_register(5));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0x08), get_register(6));
+        sb_insert_mov(&src, get_register(6), reg_make_ptr(get_register(5),0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0x00), get_register(6));
+        sb_insert_mov(&src, get_register(6), reg_make_ptr(get_register(5),8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2!", src);
 
     src.count = 0;
         sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x10);
@@ -462,6 +495,17 @@ void populate_core_words(Program_State *ps)
         sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(0),-8));
         sb_append_cstr(&src, "\xC3");
     create_word(&ps->word_table, "@", src);
+
+    src.count = 0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_mov(&src, reg_make_ptr(get_register(5),8), get_register(6));
+        sb_insert_mov(&src, reg_make_ptr(get_register(5),0), get_register(5));
+        sb_insert_mov(&src, get_register(6), reg_make_ptr(get_register(0),-8));
+        sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(0),0));
+        sb_insert_addimm(&src, reg_make_ptr(get_register(1),0), 8);
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2@", src);
 
     src.count = 0;
         sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
@@ -538,6 +582,18 @@ void populate_core_words(Program_State *ps)
         sb_insert_addimm(&src, reg_make_ptr(get_register(1), 0), 0x10);
         sb_append_cstr(&src, "\xC3");
     create_word(&ps->word_table, "2dup", src);
+
+    src.count = 0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(0),0));
+        sb_insert_mov(&src, get_register(0), get_register(6));
+        sb_insert_addimm(&src, get_register(6), 0x8);
+        sb_insert_cmpimm(&src, get_register(5), 0);
+        sb_insert_cmov(&src, get_register(6), get_register(0), NE);
+        sb_insert_mov(&src, get_register(0), reg_make_ptr(get_register(1),0));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "?dup", src);
 
     src.count = 0;
         sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
@@ -850,6 +906,16 @@ void populate_core_words(Program_State *ps)
     {
         String_Builder param_code = {0};
             sb_insert_movabs(&param_code, get_register(1), ps);
+            sb_insert_C_call(&src, word_impl, &param_code);
+        sb_free(param_code);
+        sb_append_cstr(&src, "\xC3");
+    }
+    create_word(&ps->word_table, "word", src);
+
+    src.count = 0;
+    {
+        String_Builder param_code = {0};
+            sb_insert_movabs(&param_code, get_register(1), ps);
             sb_insert_C_call(&src, find_impl, &param_code);
         sb_free(param_code);
         sb_append_cstr(&src, "\xC3");
@@ -880,6 +946,18 @@ void populate_core_words(Program_State *ps)
     src.count = 0;
         sb_insert_pop(&src, get_register(5));
         sb_insert_pop(&src, get_register(6));
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x10);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_push(&src, reg_make_ptr(get_register(0),0));
+        sb_insert_push(&src, reg_make_ptr(get_register(0),8));
+        sb_insert_push(&src, get_register(6));
+        sb_insert_push(&src, get_register(5));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2>r", src);
+
+    src.count = 0;
+        sb_insert_pop(&src, get_register(5));
+        sb_insert_pop(&src, get_register(6));
         sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
         sb_insert_pop(&src, reg_make_ptr(get_register(0),0));
         sb_insert_addimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
@@ -892,6 +970,18 @@ void populate_core_words(Program_State *ps)
         sb_insert_pop(&src, get_register(5));
         sb_insert_pop(&src, get_register(6));
         sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_pop(&src, reg_make_ptr(get_register(0),8));
+        sb_insert_pop(&src, reg_make_ptr(get_register(0),0));
+        sb_insert_addimm(&src, reg_make_ptr(get_register(1), 0), 0x10);
+        sb_insert_push(&src, get_register(6));
+        sb_insert_push(&src, get_register(5));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2r>", src);
+
+    src.count = 0;
+        sb_insert_pop(&src, get_register(5));
+        sb_insert_pop(&src, get_register(6));
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
         sb_insert_pop(&src, reg_make_ptr(get_register(0),0));
         sb_insert_push(&src, reg_make_ptr(get_register(0),0));
         sb_insert_addimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
@@ -899,6 +989,20 @@ void populate_core_words(Program_State *ps)
         sb_insert_push(&src, get_register(5));
         sb_append_cstr(&src, "\xC3");
     create_word(&ps->word_table, "r@", src);
+
+    src.count = 0;
+        sb_insert_pop(&src, get_register(5));
+        sb_insert_pop(&src, get_register(6));
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_pop(&src, reg_make_ptr(get_register(0),8));
+        sb_insert_pop(&src, reg_make_ptr(get_register(0),0));
+        sb_insert_push(&src, reg_make_ptr(get_register(0),0));
+        sb_insert_push(&src, reg_make_ptr(get_register(0),8));
+        sb_insert_addimm(&src, reg_make_ptr(get_register(1), 0), 0x10);
+        sb_insert_push(&src, get_register(6));
+        sb_insert_push(&src, get_register(5));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2r@", src);
     
     src.count=0;
         sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
@@ -984,6 +1088,97 @@ void populate_core_words(Program_State *ps)
         sb_append_cstr(&src, "\xC3");
     create_word(&ps->word_table, "1-", src);
 
+    src.count=0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_2m(&src, reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2*", src);
+
+    src.count=0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_2d(&src, reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "2/", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_shl(&src, reg_make_ptr(get_register(0),-8), reg_make_ptr(get_register(0),0));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "lshift", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_shr(&src, reg_make_ptr(get_register(0),-8), reg_make_ptr(get_register(0),0));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "rshift", src);
+
+    src.count=0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_not(&src, reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "invert", src);
+
+    src.count=0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_neg(&src, reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "negate", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_and(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "and", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_or(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "or", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_xor(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "xor", src);
+
+    src.count=0;
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_sarimm(&src, get_register(5), 63);
+        sb_insert_xor(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_insert_sub(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "abs", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_cmp(&src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_cmov(&src, reg_make_ptr(get_register(0),-8), get_register(5), LT);
+        sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "max", src);
+
+    src.count=0;
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x8);
+        sb_insert_mov(&src, reg_make_ptr(get_register(1),0), get_register(0));
+        sb_insert_mov(&src, reg_make_ptr(get_register(0),0), get_register(5));
+        sb_insert_cmp(&src, reg_make_ptr(get_register(0),-8), get_register(5));
+        sb_insert_cmov(&src, reg_make_ptr(get_register(0),-8), get_register(5), GT);
+        sb_insert_mov(&src, get_register(5), reg_make_ptr(get_register(0),-8));
+        sb_append_cstr(&src, "\xC3");
+    create_word(&ps->word_table, "min", src);
+
     src.count = 0;
     {
         String_Builder param_code = {0};
@@ -1002,6 +1197,34 @@ void populate_core_words(Program_State *ps)
         sb_insert_add(&src, get_register(5), reg_make_ptr(get_register(6),0));
         sb_append_cstr(&src, "\xC3");
     create_word(&ps->word_table, "allot", src);
+
+    src.count = 0;
+    {
+        String_Builder param_code = {0};
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(1),0), get_register(0));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(0),-0x10), get_register(1));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(0),-0x18), get_register(2));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(0),-0x08), get_register(3));
+            sb_insert_C_call(&src, memcpy, &param_code);
+            sb_free(param_code);
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x18);
+        sb_append_cstr(&src, "\xC3");
+    }
+    create_word(&ps->word_table, "move", src);
+
+    src.count = 0;
+    {
+        String_Builder param_code = {0};
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(1),0), get_register(0));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(0),-0x18), get_register(1));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(0),-0x08), get_register(2));
+            sb_insert_mov(&param_code, reg_make_ptr(get_register(0),-0x10), get_register(3));
+            sb_insert_C_call(&src, memset, &param_code);
+            sb_free(param_code);
+        sb_insert_subimm(&src, reg_make_ptr(get_register(1), 0), 0x18);
+        sb_append_cstr(&src, "\xC3");
+    }
+    create_word(&ps->word_table, "fill", src);
 
     src.count = 0;
     {

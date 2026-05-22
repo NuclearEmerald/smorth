@@ -7,15 +7,16 @@
 : parse-name bl parse ;
 
 : ' 
-    parse-name  drop 
-    find        drop 
+    bl word find
+    0= if 
+    dup 1+ swap c@ 34 emit type 34 emit 10 emit
+    bye
+    then
 ;
 
 : postpone immediate 
     ' compile, 
 ;
-
-: ?dup dup if dup then ;
 
 : align 
     here aligned 
@@ -35,6 +36,11 @@
 : constant
   : postpone literal
   postpone ;
+;
+
+: count
+    dup char+
+    swap c@
 ;
 
 : cr 10 emit ;
@@ -88,12 +94,14 @@ variable base
 ;
 
 : s" immediate
+    [char] " parse 
+    here 2dup 2>r
+    swap dup 
+    allot move 2r>
     state @ if
-        34 parse
-        swap 
         postpone literal
         postpone literal
-    else 34 parse 
+    else swap
     then
 ;
 
@@ -105,8 +113,38 @@ variable base
     state @ if
         postpone s"
         insert type
-    else postpone s" type
+    else 
+        postpone s" 
+        swap over 
+        type
+        0 swap -
+        allot
     then
+;
+
+: accept
+    dup 0<> if
+        2>r 0
+        begin
+            key dup 10 <> 
+            over 13 <> =
+        while
+            dup 8 = if
+                over 0> if 
+                    dup emit bl emit emit 1-
+                else drop
+                then
+            else
+                over r@ > if drop
+                else
+                    dup emit
+                    over 2r@ drop +
+                    c! 1+
+                then
+            then
+        repeat
+        drop 2r>
+    then 2drop
 ;
 
 

@@ -65,18 +65,34 @@ void sb_insert_ze(String_Builder *sb, Register reg);
 
 void sb_insert_movabs(String_Builder *sb, Register reg, void *v);
 void sb_insert_mov(String_Builder *sb, Register src, Register dst);
+void sb_insert_cmov(String_Builder *sb, Register src, Register dst, COND_FLAGS cc);
 void sb_insert_movabs8(String_Builder *sb, Register reg, void *v);
 void sb_insert_mov8(String_Builder *sb, Register src, Register dst);
+
 void sb_insert_inc(String_Builder *sb, Register reg);
 void sb_insert_addimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_add(String_Builder *sb, Register src, Register dst);
+
 void sb_insert_dec(String_Builder *sb, Register reg);
 void sb_insert_subimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_sub(String_Builder *sb, Register src, Register dst);
+
+void sb_insert_2m(String_Builder *sb, Register reg);
+void sb_insert_shlimm(String_Builder *sb, Register reg, uint8_t v);
+void sb_insert_shl(String_Builder *sb, Register reg, Register v);
+void sb_insert_salimm(String_Builder *sb, Register reg, uint8_t v);
+void sb_insert_sal(String_Builder *sb, Register reg, Register v);
 void sb_insert_imulimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_imul(String_Builder *sb, Register src, Register dst);
+
+void sb_insert_2d(String_Builder *sb, Register reg);
+void sb_insert_shrimm(String_Builder *sb, Register reg, uint8_t v);
+void sb_insert_shr(String_Builder *sb, Register reg, Register v);
+void sb_insert_sarimm(String_Builder *sb, Register reg, uint8_t v);
+void sb_insert_sar(String_Builder *sb, Register reg, Register v);
 void sb_insert_idivabs(String_Builder *sb, Register reg, int64_t v);
 void sb_insert_idiv(String_Builder *sb, Register src, Register dst);
+
 void sb_insert_cmpimm(String_Builder *sb, Register reg, int32_t v);
 void sb_insert_cmp(String_Builder *sb, Register src, Register dst);
 
@@ -86,6 +102,15 @@ void sb_insert_pop(String_Builder *sb, Register reg);
 
 void sb_insert_get_flagimm(String_Builder *sb, Register reg, int32_t v, COND_FLAGS flag);
 void sb_insert_get_flag(String_Builder *sb, Register src, Register dst, COND_FLAGS flag);
+
+void sb_insert_not(String_Builder *sb, Register reg);
+void sb_insert_neg(String_Builder *sb, Register reg);
+void sb_insert_andimm(String_Builder *sb, Register reg, int32_t v);
+void sb_insert_and(String_Builder *sb, Register src, Register dst);
+void sb_insert_orimm(String_Builder *sb, Register reg, int32_t v);
+void sb_insert_or(String_Builder *sb, Register src, Register dst);
+void sb_insert_xorimm(String_Builder *sb, Register reg, int32_t v);
+void sb_insert_xor(String_Builder *sb, Register src, Register dst);
 
 size_t sb_start_jmp(String_Builder *sb);
 size_t sb_start_jcc(String_Builder *sb, COND_FLAGS flag);

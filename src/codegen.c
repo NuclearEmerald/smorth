@@ -119,6 +119,19 @@ void sb_insert_mov8(String_Builder *sb, Register src, Register dst)
     if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
 }
 
+void sb_insert_cmov(String_Builder *sb, Register src, Register dst, COND_FLAGS cc)
+{
+    if(dst.kind!=REGISTER) UNREACHABLE("dst cannot be mem");
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, '\x0F');
+    sb_append(sb, '\x40'|cc);
+
+    sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
+    if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
+    if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
+}
+
 void sb_insert_addimm(String_Builder *sb, Register reg, int32_t v)
 {
     sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
@@ -238,6 +251,93 @@ void sb_insert_idiv(String_Builder *sb, Register src, Register dst)
     sb_append_cstr(sb, "\x5A\x58");
 }
 
+void sb_insert_2m(String_Builder *sb, Register reg)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xD1');
+    sb_append(sb, (reg.kind<<6)|(4<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_2d(String_Builder *sb, Register reg)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xD1');
+    sb_append(sb, (reg.kind<<6)|(5<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_shlimm(String_Builder *sb, Register reg, uint8_t v)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x5:0x0));
+    sb_append(sb, '\xC1');
+    sb_append(sb, (reg.kind<<6)|(4<<3)|(reg.id&7));
+    sb_append(sb, v);
+}
+
+void sb_insert_shl(String_Builder *sb, Register reg, Register v)
+{
+    sb_insert_push(sb, (Register){.id=RCX, .kind=REGISTER});
+    sb_insert_mov(sb, v, (Register){.id=RCX, .kind=REGISTER});
+
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xD3');
+
+    sb_append(sb, (reg.kind<<6)|(4<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+
+    sb_insert_pop(sb, (Register){.id=RCX, .kind=REGISTER});
+}
+
+void sb_insert_shrimm(String_Builder *sb, Register reg, uint8_t v)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x5:0x0));
+    sb_append(sb, '\xC1');
+    sb_append(sb, (reg.kind<<6)|(5<<3)|(reg.id&7));
+    sb_append(sb, v);
+}
+
+void sb_insert_shr(String_Builder *sb, Register reg, Register v)
+{
+    sb_insert_push(sb, (Register){.id=RCX, .kind=REGISTER});
+    sb_insert_mov(sb, v, (Register){.id=RCX, .kind=REGISTER});
+
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xD3');
+
+    sb_append(sb, (reg.kind<<6)|(5<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+
+    sb_insert_pop(sb, (Register){.id=RCX, .kind=REGISTER});
+}
+
+void sb_insert_sarimm(String_Builder *sb, Register reg, uint8_t v)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x5:0x0));
+    sb_append(sb, '\xC1');
+    sb_append(sb, (reg.kind<<6)|(7<<3)|(reg.id&7));
+    sb_append(sb, v);
+}
+
+void sb_insert_sar(String_Builder *sb, Register reg, Register v)
+{
+    sb_insert_push(sb, (Register){.id=RCX, .kind=REGISTER});
+    sb_insert_mov(sb, v, (Register){.id=RCX, .kind=REGISTER});
+
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xD3');
+
+    sb_append(sb, (reg.kind<<6)|(7<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+
+    sb_insert_pop(sb, (Register){.id=RCX, .kind=REGISTER});
+}
+
 void sb_insert_cmpimm(String_Builder *sb, Register reg, int32_t v)
 {
     sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
@@ -296,6 +396,110 @@ void sb_insert_get_flag(String_Builder *sb, Register src, Register dst, COND_FLA
     sb_insert_cmp(sb, src, dst);
     sb_insert_setcc(sb, dst, flag);
     sb_insert_ze(sb, dst);
+}
+
+void sb_insert_not(String_Builder *sb, Register reg)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xF7');
+
+    sb_append(sb, (reg.kind<<6)|(2<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_neg(String_Builder *sb, Register reg)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\xF7');
+
+    sb_append(sb, (reg.kind<<6)|(3<<3)|(reg.id&7));
+    if(reg.kind==POINTER8) sb_append(sb, reg.as.pointer8);
+    if(reg.kind==POINTER32) sb_append_buf(sb, &reg.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_andimm(String_Builder *sb, Register reg, int32_t v)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\x81');
+    sb_append(sb, (reg.kind<<6)|(4<<3)|(reg.id&7));
+    sb_append_buf(sb, &v, sizeof(int32_t));
+}
+
+void sb_insert_and(String_Builder *sb, Register src, Register dst)
+{
+    if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
+
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
+    {
+        Register tmp = src;
+        src = dst;
+        dst = tmp;
+    }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x21':'\x23');
+
+    sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
+    if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
+    if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_orimm(String_Builder *sb, Register reg, int32_t v)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\x81');
+    sb_append(sb, (reg.kind<<6)|(1<<3)|(reg.id&7));
+    sb_append_buf(sb, &v, sizeof(int32_t));
+}
+
+void sb_insert_or(String_Builder *sb, Register src, Register dst)
+{
+    if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
+
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
+    {
+        Register tmp = src;
+        src = dst;
+        dst = tmp;
+    }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x09':'\x0A');
+
+    sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
+    if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
+    if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
+}
+
+void sb_insert_xorimm(String_Builder *sb, Register reg, int32_t v)
+{
+    sb_append(sb, '\x48'|((reg.id&8)?0x1:0x0));
+    sb_append(sb, '\x81');
+    sb_append(sb, (reg.kind<<6)|(6<<3)|(reg.id&7));
+    sb_append_buf(sb, &v, sizeof(int32_t));
+}
+
+void sb_insert_xor(String_Builder *sb, Register src, Register dst)
+{
+    if(src.kind!=REGISTER&&dst.kind!=REGISTER) UNREACHABLE("cannot mov mem -> mem");
+
+    bool dist_is_mem = dst.kind!=REGISTER;
+    if(dist_is_mem)
+    {
+        Register tmp = src;
+        src = dst;
+        dst = tmp;
+    }
+
+    sb_append(sb, '\x48'|((src.id&8)?0x1:0x0)|((dst.id&8)?0x4:0x0));
+    sb_append(sb, (dist_is_mem)?'\x31':'\x33');
+
+    sb_append(sb, (src.kind<<6)|(src.id&7)|((dst.id&7)<<3));
+    if(src.kind==POINTER8) sb_append(sb, src.as.pointer8);
+    if(src.kind==POINTER32) sb_append_buf(sb, &src.as.pointer32, sizeof(int32_t));
 }
 
 size_t sb_start_jmp(String_Builder *sb)

@@ -60,7 +60,11 @@ Token next_token(Program_State  *ps)
 
     String_Builder rawsb = {0};
     while (ps->parse_offset<ps->source.count && !isspace(ps->source.items[ps->parse_offset])) sb_append(&rawsb, ps->source.items[ps->parse_offset++]);
-    if (ps->parse_offset<ps->source.count) sb_append_null(&rawsb);
+    if (ps->parse_offset<ps->source.count) 
+    {
+        ps->parse_offset++;
+        sb_append_null(&rawsb);
+    }
 
     String_View raw = sb_to_sv(rawsb);
     if (get_word(&ps->word_table, raw.data)) return (Token){.kind=FWORD, .raw=raw, .as.word=raw};
