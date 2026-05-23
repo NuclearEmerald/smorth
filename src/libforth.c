@@ -53,6 +53,7 @@ void load_library(const char *lib_path, Program_State *ps)
         interpret(ps);
         ps->source.count=0;
     }
+    fclose(f);
     return;
 }
 
@@ -1348,6 +1349,7 @@ void populate_tool_words(Program_State *ps)
         String_Builder param_code = {0};
             sb_insert_movabs(&param_code, get_register(1), 0);
             sb_insert_C_call(&src, exit, &param_code);
+        sb_free(param_code);
         sb_append_cstr(&src, "\xC3");
     }
     create_word(&ps->word_table, "bye", src);
@@ -1357,6 +1359,7 @@ void populate_tool_words(Program_State *ps)
         String_Builder param_code = {0};
             sb_insert_movabs(&param_code, get_register(1), ps);
             sb_insert_C_call(&src, dot_s_impl, &param_code);
+        sb_free(param_code);
         sb_append_cstr(&src, "\xC3");
     }
     create_word(&ps->word_table, ".s", src);

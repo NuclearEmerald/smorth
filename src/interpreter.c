@@ -37,7 +37,7 @@ void interpret(Program_State *program_state)
                 if (program_state->sp<program_state->stack) {printf("stack underflow\n"); exit(1);}
             }
         }
-        
+        sb_free(token.raw);
     }
 }
 
@@ -58,23 +58,22 @@ Token next_token(Program_State  *ps)
     while (ps->parse_offset<ps->source.count && isspace(ps->source.items[ps->parse_offset])) ps->parse_offset++;
     if(strcmp(ps->source.items+ps->parse_offset, "")==0||ps->parse_offset>=ps->source.count) return (Token){0};
 
-    String_Builder rawsb = {0};
-    while (ps->parse_offset<ps->source.count && !isspace(ps->source.items[ps->parse_offset])) sb_append(&rawsb, ps->source.items[ps->parse_offset++]);
+    String_Builder raw = {0};
+    while (ps->parse_offset<ps->source.count && !isspace(ps->source.items[ps->parse_offset])) sb_append(&raw, ps->source.items[ps->parse_offset++]);
     if (ps->parse_offset<ps->source.count) 
     {
         ps->parse_offset++;
-        sb_append_null(&rawsb);
+        sb_append_null(&raw);
     }
 
-    String_View raw = sb_to_sv(rawsb);
-    if (get_word(&ps->word_table, raw.data)) return (Token){.kind=FWORD, .raw=raw, .as.word=raw};
-    if (forth_isnumber(raw.data))
+    if (get_word(&ps->word_table, raw.items)) return (Token){.kind=FWORD, .raw=raw, .as.word=sb_to_sv(raw)};
+    if (forth_isnumber(raw.items))
     {
-        int64_t number = atoll(raw.data);
-        if ((strcmp(raw.data, "0") && strcmp(raw.data, "-0") && strcmp(raw.data, "+0")) && number==0) exit(1);
+        int64_t number = atoll(raw.items);
+        if ((strcmp(raw.items, "0") && strcmp(raw.items, "-0") && strcmp(raw.items, "+0")) && number==0) exit(1);
         return (Token){.kind=NUMBER, .raw=raw, .as.number=number};
     }
-    printf("word ( %s ) not defined\n", raw.data); 
+    printf("word ( %s ) not defined\n", raw.items); 
     exit(1);
 }
 
@@ -97,7 +96,7 @@ void create_word_impl(Word_Table *word_table, const char *name, String_Builder s
        word->imm=immediate;
         if(name)
         {
-            word->name = malloc(strlen(name));
+            word->name = malloc(strlen(name)+1);
             memcpy(word->name, name, strlen(name)+1);
         } else word->name=NULL;
         word->source = source;

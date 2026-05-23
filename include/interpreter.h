@@ -20,7 +20,7 @@ typedef struct
         String_View word;
     } as;
     
-    String_View raw;
+    String_Builder raw;
 }
 Token;
 
