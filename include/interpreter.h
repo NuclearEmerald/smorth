@@ -3,6 +3,7 @@
 
 
 #include <nob.h>
+#include <setjmp.h>
 
 typedef enum TokenKind
 {
@@ -60,6 +61,8 @@ Control_Flow_Stack_Item;
 
 typedef struct
 {
+    jmp_buf root_jmp;
+
     Word_Table word_table;
 
     int64_t stack[1024*64];
@@ -78,6 +81,14 @@ typedef struct
 }
 Program_State;
 
+typedef enum
+{
+    RJ_NORMAL ,
+    RJ_QUIT   ,
+    RJ_BYE    ,
+}
+ROOT_JMP_TYPES;
+
 
 void interpret(Program_State *program_state);
 
@@ -86,6 +97,7 @@ void compile_word(Execution_Token *word);
 void add_word(Word_Table *word_table, Execution_Token *word);
 void create_word(Word_Table *word_table, const char *name, String_Builder source);
 void create_word_imm(Word_Table *word_table, const char *name, String_Builder source);
+void free_word(Execution_Token *word);
 Execution_Token *get_word(Word_Table *word_table, const char *name);
 void call_word(Execution_Token *word, Program_State *program_state);
 void sb_insert_FORTH_call(String_Builder *sb, Execution_Token *word);

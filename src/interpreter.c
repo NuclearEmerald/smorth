@@ -106,6 +106,14 @@ void create_word_impl(Word_Table *word_table, const char *name, String_Builder s
 void create_word(Word_Table *word_table, const char *name, String_Builder source) { create_word_impl(word_table, name, source, false); }
 void create_word_imm(Word_Table *word_table, const char *name, String_Builder source) { create_word_impl(word_table, name, source, true); }
 
+void free_word(Execution_Token *word)
+{
+    free(word->name);
+    exfreesb(word->codeptr, word->source.count);
+    sb_free(word->source);
+    free(word);
+}
+
 Execution_Token *get_word(Word_Table *word_table, const char *name)
 {
     if(!name) return NULL;

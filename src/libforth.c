@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <stddef.h> // for ptrdiff_t on linux
+#include <setjmp.h>
 
 #ifdef _WIN32
     #include <conio.h>
@@ -1347,8 +1348,9 @@ void populate_tool_words(Program_State *ps)
     src.count = 0;
     {
         String_Builder param_code = {0};
-            sb_insert_movabs(&param_code, get_register(1), 0);
-            sb_insert_C_call(&src, exit, &param_code);
+            sb_insert_movabs(&param_code, get_register(1), ps->root_jmp);
+            sb_insert_movabs(&param_code, get_register(2), (void*)RJ_BYE);
+            sb_insert_C_call(&src, longjmp, &param_code);
         sb_free(param_code);
         sb_append_cstr(&src, "\xC3");
     }

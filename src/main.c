@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <setjmp.h>
 
 #include <interpreter.h>
 #include <libforth.h>
@@ -39,26 +40,35 @@ int main(int argc, char **argv)
 
     printf("SMORTH v0.5\nby (re)tur(n) 0;\nthe bye word can be used at any time to quit\n");
 
-    
-    while (true)
+    switch(setjmp(program_state.root_jmp))
     {
-        program_state.source.count=0;
-        char c;
-        while ((c = getchar())!='\n') sb_append(&program_state.source, c);
-        sb_append_null(&program_state.source);
-        program_state.parse_offset=0;
-        
-        interpret(&program_state);
-        if(st)
-        {
-            program_state.source.count=0;
-            sb_append_cstr(&program_state.source, ".s");
-            sb_append_null(&program_state.source);
-            program_state.parse_offset=0;
-            interpret(&program_state);
-        }
-        printf("ok\n");
+        case RJ_NORMAL:
+            while (true)
+            {
+                program_state.source.count=0;
+                char c;
+                while ((c = getchar())!='\n') sb_append(&program_state.source, c);
+                sb_append_null(&program_state.source);
+                program_state.parse_offset=0;
+                
+                interpret(&program_state);
+                if(st)
+                {
+                    program_state.source.count=0;
+                    sb_append_cstr(&program_state.source, ".s");
+                    sb_append_null(&program_state.source);
+                    program_state.parse_offset=0;
+                    interpret(&program_state);
+                }
+                printf("ok\n");
+            } break;
+        case RJ_QUIT: TODO("haven't done this yet");
+        case RJ_BYE: break;
     }
+
+    sb_free(program_state.source);
+    da_foreach(Execution_Token*, word, &program_state.word_table) free_word(*word);
+    da_free(program_state.word_table);
     
     return 0;
 }
